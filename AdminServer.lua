@@ -1,11 +1,10 @@
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local DataStoreService = game:GetService("DataStoreService")
 
 local ADMINS = {
-    [123456789] = true, -- UserID Here
+    [123456789] = true, -- Replace with your UserID
 }
 
 local BanStore = DataStoreService:GetDataStore("AdminBans_V1")
@@ -15,18 +14,19 @@ remote.Name = "AdminFunction"
 remote.Parent = ReplicatedStorage
 
 local function isAdmin(player)
-    return ADMINS[player.UserId] == true
+    return player and player:IsA("Player") and ADMINS[player.UserId] == true
 end
 
 local function findPlayer(userId)
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.UserId == userId then
-            return p
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.UserId == userId then
+            return player
         end
     end
+
+    return nil
 end
 
--- Check bans when players join
 Players.PlayerAdded:Connect(function(player)
     local success, banned = pcall(function()
         return BanStore:GetAsync(tostring(player.UserId))
@@ -45,11 +45,11 @@ remote.OnServerInvoke = function(admin, action, targetId)
     if action == "GetPlayers" then
         local list = {}
 
-        for _, p in ipairs(Players:GetPlayers()) do
+        for _, player in ipairs(Players:GetPlayers()) do
             table.insert(list, {
-                Name = p.Name,
-                DisplayName = p.DisplayName,
-                UserId = p.UserId
+                Name = player.Name,
+                DisplayName = player.DisplayName,
+                UserId = player.UserId,
             })
         end
 
@@ -57,6 +57,22 @@ remote.OnServerInvoke = function(admin, action, targetId)
     end
 
     if action == "FlyPermission" then
+        return true
+    end
+
+    if action == "Unban" then
+        if typeof(targetId) ~= "number" then
+            return false, "Invalid player"
+        end
+
+        local success = pcall(function()
+            BanStore:RemoveAsync(tostring(targetId))
+        end)
+
+        if not success then
+            return false, "Unban could not be saved"
+        end
+
         return true
     end
 
@@ -115,11 +131,14 @@ remote.OnServerInvoke = function(admin, action, targetId)
         if backpack then
             for _, tool in ipairs(folder:GetChildren()) do
                 if tool:IsA("Tool") then
-                    tool:Clone().Parent = backpack
+                    local clonedTool = tool:Clone()
+                    clonedTool.Parent = backpack
                 end
             end
             return true
         end
+
+        return false, "Target backpack unavailable"
     end
 
     return false, "Unknown action"
